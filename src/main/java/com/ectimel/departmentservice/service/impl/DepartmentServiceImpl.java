@@ -3,6 +3,8 @@ package com.ectimel.departmentservice.service.impl;
 import com.ectimel.departmentservice.dto.DepartmentDto;
 import com.ectimel.departmentservice.dto.DepartmentsResponse;
 import com.ectimel.departmentservice.entity.Department;
+import com.ectimel.departmentservice.exception.DepartmentCodeAlreadyExistException;
+import com.ectimel.departmentservice.exception.ResourceNotFoundException;
 import com.ectimel.departmentservice.repository.DepartmentRepository;
 import com.ectimel.departmentservice.service.DepartmentService;
 import org.modelmapper.ModelMapper;
@@ -13,6 +15,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Optional;
 
 @Service
 public class DepartmentServiceImpl implements DepartmentService {
@@ -28,14 +31,27 @@ public class DepartmentServiceImpl implements DepartmentService {
     @Override
     public DepartmentDto findDepartmentByCode(String code) {
 
-        Department department = departmentRepository
-                .findDepartmentByDepartmentCode(code.toUpperCase());
+        Optional<Department> departmentAsOptional = departmentRepository
+                .findDepartmentByDepartmentCode(code);
+
+        if (departmentAsOptional.isEmpty()) {
+            throw new ResourceNotFoundException("Department", "code", code);
+        }
+
+        Department department = departmentAsOptional.get();
 
         return modelMapper.map(department, DepartmentDto.class);
     }
 
     @Override
     public DepartmentDto createDepartment(DepartmentDto departmentDto) {
+
+        Optional<Department> dep = departmentRepository
+                .findDepartmentByDepartmentCode(departmentDto.getDepartmentCode());
+
+        if(dep.isPresent()){
+            throw new DepartmentCodeAlreadyExistException(departmentDto.getDepartmentCode());
+        }
 
         Department department = modelMapper.map(departmentDto, Department.class);
         return modelMapper.map(departmentRepository.save(department), DepartmentDto.class);
@@ -59,13 +75,12 @@ public class DepartmentServiceImpl implements DepartmentService {
                 .map(d -> modelMapper.map(d, DepartmentDto.class))
                 .toList();
 
-        DepartmentsResponse departmentsResponse = new DepartmentsResponse();
-        departmentsResponse.setContent(departmentsDto);
-        departmentsResponse.setPageNo(pageNo);
-        departmentsResponse.setPageSize(pageSize);
-        departmentsResponse.setTotalElements(departmentsDto.size());
-        departmentsResponse.setLast(departmentsList.isLast());
-
-        return departmentsResponse;
+        return DepartmentsResponse.builder()
+                .content(departmentsDto)
+                .pageNo(pageNo)
+                .pageSize(pageSize)
+                .totalElements(departmentsDto.size())
+                .last(departmentsList.isLast())
+                .build();
     }
 }
